@@ -1,6 +1,6 @@
 # Supplementary Motor Cortex
 
-<img src="://i.imgur.com/51OXfrz.png" alt="Maps used by Horsley and Shafer to summarise the results of cortical stimulation in Ceropithecus monkeys." style="width: 350px;"/>
+<img src="https://i.imgur.com/51OXfrz.png" alt="Maps used by Horsley and Shafer to summarise the results of cortical stimulation in Ceropithecus monkeys." style="width: 350px;"/>
 
 In biology the supplementary motor cortex or area (SMA) is a part of the brain that contributes to the control of movement. Neurons in the SMA project directly to the spinal cord and may play a role in the direct control of movement. It is hypothesised that it may be the control of movements that are internally generated rather than triggered by sensory events, and the control of sequences of movements. (1)
 
