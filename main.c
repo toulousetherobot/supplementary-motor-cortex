@@ -4,6 +4,61 @@
 
 #include "tinyspline.h"
 
+// float** 
+tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
+{
+  tsRational u;
+  tsDeBoorNet net;
+
+  *size = 1.f/increment;
+
+  tsRational **cartesian = malloc(sizeof(tsRational *)* (*size));
+
+  size_t i = 0;
+  for (u = 0.f; u < 1.f; u += increment)
+  {
+    ts_bspline_evaluate(spline, u, &net);
+
+    // Store in Memmory
+    tsRational *result = malloc(sizeof(tsRational) * 2);
+    result[0] = net.result[0]; result[1] = net.result[1];
+    cartesian[i] = result;
+    i++;
+  }
+
+  ts_deboornet_free(&net);
+
+  return cartesian;
+}
+
+tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
+{
+
+  tsRational **transformation = malloc(sizeof(tsRational *)* size);
+
+  size_t i;
+  for (i = 0; i < size; i++)
+  {
+    tsRational* result = cartesian[i];
+    printf("x: %f, y: %f\n", result[0], result[1]);
+  }
+  
+  return transformation;
+}
+
+tsRational** destroy_cartesian(tsRational **cartesian, size_t size)
+{
+  size_t i;
+  for (i = 0; i < size; i++)
+  {
+    free((tsRational *) cartesian[i]);
+  }
+  free(cartesian);
+
+  return NULL;
+}
+
+
 int main(int argc, char** argv)
 {
 
@@ -38,17 +93,12 @@ int main(int argc, char** argv)
   spline.ctrlp[12] = 0.5;
   spline.ctrlp[13] = 0.0;
 
+  size_t size;
+  tsRational **cartesian, **transformation;
+  cartesian = spline_to_cartesian(&spline, 0.1f, &size);
+  transformation = cartesian_to_motor_angles(cartesian, size);
 
-  tsRational u;
-  tsDeBoorNet net;
-  for (u = 0.f; u < 1.f; u += 0.1f)
-  {
-    ts_bspline_evaluate(&spline, u, &net);
-    printf("x: %f, y: %f\n", net.result[0], net.result[1]);
-  }
-
-
-  ts_deboornet_free(&net);
-
-  return 0; 
+  // Clean Up
+  cartesian = destroy_cartesian(cartesian, size);
+  return 0;
 }
