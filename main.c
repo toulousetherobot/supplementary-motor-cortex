@@ -156,7 +156,7 @@ int main(int argc, char** argv)
       // Building Spline
       tsBSpline spline;
       ts_bspline_new(
-        1,      /* degree of spline */
+        (count/3 == 1) ? 1 : 3,      /* degree of spline */
         2,      /* dimension of each point */
         (count+1)/2,      /* number of control points */
         TS_CLAMPED, /* used to hit first and last control point */
