@@ -1,10 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+#include <math.h> // Required for tinyspline
+#include <errno.h> // Error Checking
+#include <string.h> // Required for strerror()
 
 #include "tinyspline.h"
 
-// float** 
+#define MaxTextExtent  4096 /* always >= 4096 */
+#define MaxCtrlPointsExtent 100 /* always >= 50 */
+
 tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
 {
   tsRational u;
@@ -58,47 +62,82 @@ tsRational** destroy_cartesian(tsRational **cartesian, size_t size)
   return NULL;
 }
 
-
 int main(int argc, char** argv)
 {
 
-  tsBSpline spline;
-  ts_bspline_new(
-    3,      /* degree of spline */
-    2,      /* dimension of each point */
-    7,      /* number of control points */
-    TS_CLAMPED, /* used to hit first and last control point */
-    &spline /* the spline to setup */
-  );
+  if (argc != 2)
+  {
+    fprintf(stdout,"Usage: %s curves\n", argv[0]);
+    exit(EXIT_FAILURE);
+  }
 
-  /* Setup control points. */
-  spline.ctrlp[0] = -1.75;
-  spline.ctrlp[1] = -1.0;
+  FILE* file = fopen(argv[1], "r");
+  if(file == NULL)
+  {
+    fprintf(stderr,"File Null Error <%s>: %s\n", argv[1], strerror(errno));
+    exit(EXIT_FAILURE);
+  }
 
-  spline.ctrlp[2] = -1.5;
-  spline.ctrlp[3] = -0.5;
+  char buffer[MaxTextExtent];
 
-  spline.ctrlp[4] = -1.5;
-  spline.ctrlp[5] = 0.0;
+  while (fgets(buffer, sizeof(buffer), file))
+  {
+    /* note that fgets don't strip the terminating \n, checking its
+      presence would allow to handle lines longer that sizeof(buffer) */
 
-  spline.ctrlp[6] = -1.25;
-  spline.ctrlp[7] = 0.5;
+    char *pt;
+    pt = strtok (buffer, ";");
+    // printf("Tool No: '%d'\n", atoi(pt));
 
-  spline.ctrlp[8] = -0.75;
-  spline.ctrlp[9] = 0.75;
+    tsRational *points = malloc(sizeof(tsRational) * MaxCtrlPointsExtent);
+    size_t count = -1;
 
-  spline.ctrlp[10] = 0.0;
-  spline.ctrlp[11] = 0.5;
+    pt = strtok (NULL, ",");
+    while (pt != NULL) {
+      count++;
+      points[count] = atof(pt);
+      pt = strtok (NULL, ",");
+    }
 
-  spline.ctrlp[12] = 0.5;
-  spline.ctrlp[13] = 0.0;
+    if (count % 2 == 0)
+    {
+      fprintf(stderr,"Error %s: Improperly Defined Bezier Curve\n", argv[0]);
+      exit(EXIT_FAILURE);
+    }
 
-  size_t size;
-  tsRational **cartesian, **transformation;
-  cartesian = spline_to_cartesian(&spline, 0.1f, &size);
-  transformation = cartesian_to_motor_angles(cartesian, size);
+    tsBSpline spline;
+    ts_bspline_new(
+      1,      /* degree of spline */
+      2,      /* dimension of each point */
+      (count+1)/2,      /* number of control points */
+      TS_CLAMPED, /* used to hit first and last control point */
+      &spline /* the spline to setup */
+    );
 
-  // Clean Up
-  cartesian = destroy_cartesian(cartesian, size);
-  return 0;
+    /* Setup control points. */
+    size_t i;
+    for (i = 0; i < count+1; i++)
+    {
+      spline.ctrlp[i] = points[i];
+    }
+
+    size_t size;
+    tsRational **cartesian, **transformation;
+    cartesian = spline_to_cartesian(&spline, 0.1f, &size);
+    transformation = cartesian_to_motor_angles(cartesian, size);
+
+    // Clean Up
+    cartesian = destroy_cartesian(cartesian, size);
+
+    free(points);
+  }
+
+  if (!feof(file))
+  {
+    fprintf(stderr,"File EOF Error <%s>: %s\n", argv[1], strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  fclose(file);
+  return EXIT_SUCCESS;
 }
