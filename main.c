@@ -9,6 +9,10 @@
 #define MaxTextExtent  4096 /* always >= 4096 */
 #define MaxCtrlPointsExtent 100 /* always >= 50 */
 
+#define ShoulderPanLinkLength 8.75
+#define ElbowPanLinkLength 8.75
+#define PPI 72 
+
 tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
 {
   tsRational u;
@@ -19,13 +23,14 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
   tsRational **cartesian = malloc(sizeof(tsRational *)* (*size));
 
   size_t i = 0;
-  for (u = 0.f; u < 1.f; u += increment)
+  for (u = 0.f; u <= 1.f; u += increment)
   {
     ts_bspline_evaluate(spline, u, &net);
 
     // Store in Memmory
     tsRational *result = malloc(sizeof(tsRational) * 2);
-    result[0] = net.result[0]; result[1] = net.result[1];
+    result[0] = net.result[0]/PPI - 8.5; // x
+    result[1] = 15 - net.result[1]/PPI; // y
     cartesian[i] = result;
     i++;
   }
@@ -178,6 +183,7 @@ int main(int argc, char** argv)
 
       // Clean Up
       cartesian = destroy_cartesian(cartesian, size);
+      transformation = destroy_cartesian(transformation, size);
       free(points);
       free(ret); ret = (char *) NULL;
       full_length = 0;
