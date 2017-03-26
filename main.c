@@ -48,8 +48,16 @@ tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
   size_t i;
   for (i = 0; i < size; i++)
   {
-    tsRational* result = cartesian[i];
-    printf("x: %f, y: %f\n", result[0], result[1]);
+    tsRational *result = malloc(sizeof(tsRational) * 2);
+    float theta1, theta2, r;
+
+    r = (pow(cartesian[i][0],2)+pow(cartesian[i][1],2)-pow(ShoulderPanLinkLength,2)-pow(ElbowPanLinkLength,2))/(2*ShoulderPanLinkLength*ElbowPanLinkLength);
+    theta2 = atan2(sqrt(1-pow(r,2)),r);
+    theta1 = atan2(cartesian[i][1], cartesian[i][0]) - atan2(ElbowPanLinkLength*sin(theta2), ShoulderPanLinkLength+ElbowPanLinkLength*cos(theta2));
+
+    result[0] = theta1;
+    result[1] = theta2;
+    transformation[i] = result;
   }
   
   return transformation;
