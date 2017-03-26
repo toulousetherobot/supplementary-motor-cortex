@@ -11,7 +11,23 @@
 
 #define ShoulderPanLinkLength 8.75
 #define ElbowPanLinkLength 8.75
-#define PPI 72 
+#define PPI 72
+
+#define StartFrameDelimiter 0xAB
+#define EndOfFrame 0xCD
+
+// The structure is maked with __attribute((packed))
+// because we don't want any structure padding. Otherwise we might
+// send an invalid message to the device.
+typedef struct {
+    unsigned char SFD;
+    unsigned char VERSION;
+    int16_t THETA1;
+    int16_t THETA2;
+    int16_t D3;
+    unsigned short CRC;
+    unsigned char EFD;
+} __attribute__((packed)) CPFrameVersion01;
 
 tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
 {
@@ -61,6 +77,20 @@ tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
   }
   
   return transformation;
+}
+
+CPFrameVersion01 *motor_angles_to_packet(tsRational **transformation, size_t size)
+{
+  CPFrameVersion01 *packets = malloc(sizeof(tsRational *)* size);
+  size_t i;
+  for (i = 0; i < size; i++)
+  {
+    tsRational *result = transformation[i];
+    CPFrameVersion01 frame = {StartFrameDelimiter, 1, result[0], result[1], 255, 0, EndOfFrame};
+    packets[i] = frame;
+  }
+
+  return packets;
 }
 
 tsRational** destroy_cartesian(tsRational **cartesian, size_t size)
@@ -188,6 +218,28 @@ int main(int argc, char** argv)
       tsRational **cartesian, **transformation;
       cartesian = spline_to_cartesian(&spline, 0.1f, &size);
       transformation = cartesian_to_motor_angles(cartesian, size);
+
+      // Form Packet
+      CPFrameVersion01 *packets = motor_angles_to_packet(transformation, size);
+
+      FILE *packets_buffer = fopen("brush_stroke_calibration_curves.tmp", "ab");
+      if(file == NULL)
+      {
+        fprintf(stderr,"File Null Error <%s>: %s\n", "brush_stroke_calibration_curves.tmp", strerror(errno));
+        exit(EXIT_FAILURE);
+      }
+
+      size_t bytes_written;
+      for (i = 0; i < size; i++)
+      {
+        bytes_written = fwrite(&packets[i], sizeof(CPFrameVersion01), 1, packets_buffer);
+        if (bytes_written != 1)
+        {
+          fprintf(stderr,"Error %s: File Write Operation\n", argv[0]);
+          exit(EXIT_FAILURE);
+        }
+      }
+      fclose(packets_buffer);
 
       // Clean Up
       cartesian = destroy_cartesian(cartesian, size);
