@@ -23,7 +23,7 @@ LDLIBS =
 
 main: main.o tinyspline.o
 
-main.o: main.c tinyspline.h
+main.o: main.c tinyspline.h CPFrames.h
 
 tinyspline.o: tinyspline.c
 

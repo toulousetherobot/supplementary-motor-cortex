@@ -5,6 +5,7 @@
 #include <string.h> // Required for strerror()
 
 #include "tinyspline.h"
+#include "CPFrames.h"
 
 #define MaxTextExtent  4096 /* always >= 4096 */
 #define MaxCtrlPointsExtent 100 /* always >= 50 */
@@ -12,22 +13,6 @@
 #define ShoulderPanLinkLength 8.75
 #define ElbowPanLinkLength 8.75
 #define PPI 72
-
-#define StartFrameDelimiter 0xAB
-#define EndOfFrame 0xCD
-
-// The structure is maked with __attribute((packed))
-// because we don't want any structure padding. Otherwise we might
-// send an invalid message to the device.
-typedef struct {
-    unsigned char SFD;
-    unsigned char VERSION;
-    int16_t THETA1;
-    int16_t THETA2;
-    int16_t D3;
-    unsigned short CRC;
-    unsigned char EFD;
-} __attribute__((packed)) CPFrameVersion01;
 
 tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
 {
@@ -79,14 +64,14 @@ tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
   return transformation;
 }
 
-CPFrameVersion01 *motor_angles_to_packet(tsRational **transformation, size_t size)
+CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t size)
 {
-  CPFrameVersion01 *packets = malloc(sizeof(tsRational *)* size);
+  CPFrameVersion02 *packets = malloc(sizeof(tsRational *)* size);
   size_t i;
   for (i = 0; i < size; i++)
   {
     tsRational *result = transformation[i];
-    CPFrameVersion01 frame = {StartFrameDelimiter, 1, result[0], result[1], 255, 0, EndOfFrame};
+    CPFrameVersion02 frame = {StartFrameDelimiter, 1, result[0], result[1], 255, 0, EndOfFrame};
     packets[i] = frame;
   }
 
@@ -220,11 +205,11 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
       transformation = cartesian_to_motor_angles(cartesian, size);
 
       // Form Packet
-      CPFrameVersion01 *packets = motor_angles_to_packet(transformation, size);
+      CPFrameVersion02 *packets = motor_angles_to_packet(transformation, size);
 
       for (i = 0; i < size; i++)
       {
-        size_t bytes_written = fwrite(&packets[i], sizeof(CPFrameVersion01), 1, packets_buffer);
+        size_t bytes_written = fwrite(&packets[i], sizeof(CPFrameVersion02), 1, packets_buffer);
         if (bytes_written != 1)
         {
           fprintf(stderr,"Error: File Write Operation\n");
