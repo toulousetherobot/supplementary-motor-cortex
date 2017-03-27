@@ -105,19 +105,19 @@ tsRational** destroy_cartesian(tsRational **cartesian, size_t size)
   return NULL;
 }
 
-int main(int argc, char** argv)
+int motion_planning_packets(const char *curves_file, const char *packets_buffer_file)
 {
-
-  if (argc != 2)
+  FILE* file = fopen(curves_file, "r");
+  if(file == NULL)
   {
-    fprintf(stdout,"Usage: %s curves\n", argv[0]);
+    fprintf(stderr,"File Null Error <%s>: %s\n", curves_file, strerror(errno));
     exit(EXIT_FAILURE);
   }
 
-  FILE* file = fopen(argv[1], "r");
+  FILE *packets_buffer = fopen(packets_buffer_file, "wb+");
   if(file == NULL)
   {
-    fprintf(stderr,"File Null Error <%s>: %s\n", argv[1], strerror(errno));
+    fprintf(stderr,"File Null Error <%s>: %s\n", packets_buffer_file, strerror(errno));
     exit(EXIT_FAILURE);
   }
 
@@ -192,7 +192,7 @@ int main(int argc, char** argv)
       // Checking Compliance for Dimensions of Control Points
       if (count % 2 == 0)
       {
-        fprintf(stderr,"Error %s: Improperly Defined Bezier Curve\n", argv[0]);
+        fprintf(stderr,"Error %s: Improperly Defined Bezier Curve\n", curves_file);
         exit(EXIT_FAILURE);
       }
 
@@ -222,24 +222,15 @@ int main(int argc, char** argv)
       // Form Packet
       CPFrameVersion01 *packets = motor_angles_to_packet(transformation, size);
 
-      FILE *packets_buffer = fopen("brush_stroke_calibration_curves.tmp", "ab");
-      if(file == NULL)
-      {
-        fprintf(stderr,"File Null Error <%s>: %s\n", "brush_stroke_calibration_curves.tmp", strerror(errno));
-        exit(EXIT_FAILURE);
-      }
-
-      size_t bytes_written;
       for (i = 0; i < size; i++)
       {
-        bytes_written = fwrite(&packets[i], sizeof(CPFrameVersion01), 1, packets_buffer);
+        size_t bytes_written = fwrite(&packets[i], sizeof(CPFrameVersion01), 1, packets_buffer);
         if (bytes_written != 1)
         {
-          fprintf(stderr,"Error %s: File Write Operation\n", argv[0]);
+          fprintf(stderr,"Error: File Write Operation\n");
           exit(EXIT_FAILURE);
         }
       }
-      fclose(packets_buffer);
 
       // Clean Up
       cartesian = destroy_cartesian(cartesian, size);
@@ -252,11 +243,25 @@ int main(int argc, char** argv)
 
   if (!feof(file))
   {
-    fprintf(stderr,"File EOF Error <%s>: %s\n", argv[1], strerror(errno));
+    fprintf(stderr,"File EOF Error %s: %s\n", packets_buffer_file, strerror(errno));
     exit(EXIT_FAILURE);
   }
 
+  // Clean Up
   fclose(file);
+  fclose(packets_buffer);
   free(ret);
   return EXIT_SUCCESS;
+}
+
+int main(int argc, char** argv)
+{
+
+  if (argc != 3)
+  {
+    fprintf(stdout,"Usage: %s <curves file> <packets file>\n", argv[0]);
+    exit(EXIT_FAILURE);
+  }
+
+  return motion_planning_packets(argv[1], argv[2]);
 }
