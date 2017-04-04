@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h> // Required for tinyspline
+#include <math.h> // Required for <tinyspline.h>, M_PI, atan2, sin, cos
 #include <errno.h> // Error Checking
 #include <string.h> // Required for strerror()
 
@@ -56,8 +56,8 @@ tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
     theta2 = atan2(sqrt(1-pow(r,2)),r);
     theta1 = atan2(cartesian[i][1], cartesian[i][0]) - atan2(ElbowPanLinkLength*sin(theta2), ShoulderPanLinkLength+ElbowPanLinkLength*cos(theta2));
 
-    result[0] = theta1;
-    result[1] = theta2;
+    result[0] = roundf((theta1*180.0/M_PI)/1.8);
+    result[1] = roundf((theta2*180.0/M_PI)/1.8);
     transformation[i] = result;
   }
   
@@ -71,7 +71,7 @@ CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t siz
   for (i = 0; i < size; i++)
   {
     tsRational *result = transformation[i];
-    CPFrameVersion02 frame = {StartFrameDelimiter, 1, result[0], result[1], 255, 0, EndOfFrame};
+    CPFrameVersion02 frame = {StartFrameDelimiter, 2, (short)result[0], (short)result[1], 255, 0, EndOfFrame};
     packets[i] = frame;
   }
 
