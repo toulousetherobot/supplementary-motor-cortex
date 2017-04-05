@@ -31,9 +31,10 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
     ts_bspline_evaluate(spline, u, &net);
 
     // Store in Memmory
-    tsRational *result = malloc(sizeof(tsRational) * 2);
+    tsRational *result = malloc(sizeof(tsRational) * 3);
     result[0] = net.result[0]/PPI - 8.5; // x
     result[1] = 15 - net.result[1]/PPI; // y
+    result[2] = 0; // z
     cartesian[i] = result;
     i++;
   }
@@ -51,15 +52,16 @@ tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
   size_t i;
   for (i = 0; i < size; i++)
   {
-    tsRational *result = malloc(sizeof(tsRational) * 2);
+    tsRational *result = malloc(sizeof(tsRational) * 3);
     float theta1, theta2, r;
 
     r = (pow(cartesian[i][0],2)+pow(cartesian[i][1],2)-pow(ShoulderPanLinkLength,2)-pow(ElbowPanLinkLength,2))/(2*ShoulderPanLinkLength*ElbowPanLinkLength);
     theta2 = atan2(sqrt(1-pow(r,2)),r);
     theta1 = atan2(cartesian[i][1], cartesian[i][0]) - atan2(ElbowPanLinkLength*sin(theta2), ShoulderPanLinkLength+ElbowPanLinkLength*cos(theta2));
 
-    result[0] = roundf((theta1*180.0/M_PI)/1.8);
-    result[1] = roundf((theta2*180.0/M_PI)/1.8);
+    result[0] = roundf(theta1*437.04);
+    result[1] = roundf(theta2*437.04);
+    result[2] = roundf((cartesian[i][2]/50.0)*255);
     transformation[i] = result;
   }
   
@@ -73,7 +75,7 @@ CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t siz
   for (i = 0; i < size; i++)
   {
     tsRational *result = transformation[i];
-    CPFrameVersion02 frame = {StartFrameDelimiter, 2, htons((short)result[0]), htons((short)result[1]), 0, 0, EndOfFrame};
+    CPFrameVersion02 frame = {StartFrameDelimiter, 2, htons((short)result[0]), htons((short)result[1]), htons((short)result[2]), 0, EndOfFrame};
     frame.CRC = crcFast((unsigned char *) &frame, 8);
     packets[i] = frame;
   }
