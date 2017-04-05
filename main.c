@@ -2,9 +2,11 @@
 #include <stdio.h>
 #include <math.h> // Required for <tinyspline.h>, M_PI, atan2, sin, cos
 #include <errno.h> // Error Checking
-#include <string.h> // Required for strerror()
+#include <string.h> // Required for strerror, <crc.h>
 
 #include "tinyspline.h"
+#include "crc.h"
+
 #include "CPFrames.h"
 
 #define MaxTextExtent  4096 /* always >= 4096 */
@@ -71,7 +73,8 @@ CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t siz
   for (i = 0; i < size; i++)
   {
     tsRational *result = transformation[i];
-    CPFrameVersion02 frame = {StartFrameDelimiter, 2, (short)result[0], (short)result[1], 255, 0, EndOfFrame};
+    CPFrameVersion02 frame = {StartFrameDelimiter, 2, htons((short)result[0]), htons((short)result[1]), 0, 0, EndOfFrame};
+    frame.CRC = crcFast((unsigned char *) &frame, 8);
     packets[i] = frame;
   }
 
@@ -105,6 +108,8 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
     fprintf(stderr,"File Null Error <%s>: %s\n", packets_buffer_file, strerror(errno));
     exit(EXIT_FAILURE);
   }
+
+  crcInit();
 
   char buffer[MaxTextExtent];
 
