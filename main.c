@@ -3,6 +3,7 @@
 #include <math.h> // Required for <tinyspline.h>, M_PI, atan2, sin, cos
 #include <errno.h> // Error Checking
 #include <string.h> // Required for strerror, <crc.h>
+#include <arpa/inet.h>
 
 #include "tinyspline.h"
 #include "crc.h"
