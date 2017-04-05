@@ -19,7 +19,7 @@ LDFLAGS = -g
 # List the libraries you need to link with in LDLIBS
 # For example, use "-lm" for the math library
 
-LDLIBS = 
+LDLIBS = -lm
 
 main: main.o tinyspline.o crc.o
 
