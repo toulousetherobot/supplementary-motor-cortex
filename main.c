@@ -4,6 +4,7 @@
 #include <errno.h> // Error Checking
 #include <string.h> // Required for strerror, <crc.h>
 #include <arpa/inet.h>
+#include <time.h> // srand
 
 #include "tinyspline.h"
 #include "crc.h"
@@ -62,7 +63,7 @@ tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
 
     result[0] = roundf(theta1*437.04);
     result[1] = roundf(theta2*437.04);
-    result[2] = roundf((cartesian[i][2]/50.0)*255);
+    result[2] = (rand() % 975) + 15;
     transformation[i] = result;
   }
   
@@ -76,8 +77,11 @@ CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t siz
   for (i = 0; i < size; i++)
   {
     tsRational *result = transformation[i];
-    CPFrameVersion02 frame = {StartFrameDelimiter, 2, htons((short)result[0]), htons((short)result[1]), htons((short)result[2]), 0, EndOfFrame};
-    frame.CRC = crcFast((unsigned char *) &frame, 8);
+    short theta1, theta2, d3;
+    theta1 = floor(result[0]); theta2 = floor(result[1]); d3 = floor(result[2]);
+    CPFrameVersion02 frame = {StartFrameDelimiter, CPV02_VERSION, 0, theta1, theta2, d3, 0, EndOfFrame};
+    frame.CRC = crcFast((unsigned char *) &frame, CPV02_SIZE-3);
+    printf("%d\n", frame.CRC);
     packets[i] = frame;
   }
 
@@ -113,7 +117,7 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
   }
 
   crcInit();
-
+  srand(time(NULL));   // should only be called once
   char buffer[MaxTextExtent];
 
   int found_tool = 0;
@@ -142,7 +146,7 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
     strcpy(ret + full_length, buffer); /* concatenate */
     full_length += len;
     
-    if (feof(stdin) || buffer[len-1] == '\n')
+    if (feof(file) || buffer[len-1] == '\n')
     {
       // Complete Toolpath Found
       char *new_line_char = strchr(ret, '\n');

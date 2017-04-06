@@ -14,11 +14,14 @@
 
 #define SERIAL_DEVICE "/dev/serial0"
 #define RESEND_TIME 5
-#define PROTOCOL_VERSION CPV01_VERSION
-#define PROTOCOL_SIZE CPV01_SIZE
+#define RX_PROTOCOL_VERSION CPV01_VERSION
+#define RX_PROTOCOL_SIZE CPV01_SIZE
+#define TX_PROTOCOL_VERSION CPV02_VERSION
+#define TX_PROTOCOL_SIZE CPV02_SIZE
 
 int main(int argc, char** argv)
 {
+  srand(time(NULL));   // should only be called once
 
   if (argc != 2)
   {
@@ -73,7 +76,7 @@ int main(int argc, char** argv)
   //  PARODD - Odd parity (else even)
   struct termios options;
   tcgetattr(serial, &options);
-  options.c_cflag = B115200 | CS8 | CLOCAL;   //<Set baud rate
+  options.c_cflag = B115200 | CS8 | CLOCAL | CREAD;   //<Set baud rate
   options.c_iflag = 0;
   options.c_oflag = 0;
   options.c_lflag = 0;
@@ -89,7 +92,8 @@ int main(int argc, char** argv)
   time_t now;
 
   int packets = 0;
-  char buffer[12];
+  char buffer[TX_PROTOCOL_SIZE];
+  char corrupted_buffer[TX_PROTOCOL_SIZE];
 
   // While Still Have Packets in File Queue
   while(!feof(file))
@@ -97,26 +101,35 @@ int main(int argc, char** argv)
     // Recieved Acknowledgement or First Loop
     if (receiveState == 0){
       // Read in next frame from file / fgets reads size-1 into buffer
-      if (fgets(buffer, sizeof(CPFrameVersion02)+1, file) != NULL){
+      if (fread(buffer, 1, TX_PROTOCOL_SIZE, file) > 0){
         CPFrameVersion02 *frame = (CPFrameVersion02 *) &buffer;
 
+        printf("----> TX F<%d>: %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX\n", packets, buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7], buffer[8], buffer[9], buffer[10], buffer[11]);
+        printf("      SFD: %4d, V: %4d, CODE: %4d, THETA1: %6d, THETA2 %6d, D3 %6d, CRC: %4d, EFD: %4d\n", frame->SFD, frame->VERSION, frame->CODE,frame->THETA1, frame->THETA2, frame->D3, frame->CRC, frame->EFD);
+
         // Check frame is uncorrupted using CRC
-        if (crcFast((unsigned char *) &buffer, 10) != 0)
+        if (crcFast((unsigned char *) &buffer, TX_PROTOCOL_SIZE-3) != frame->CRC)
         {
-          fprintf(stderr,"CRC Check on Packet <%d>: Failed\n", packets);
+          fprintf(stderr,"      ! CRC Check on Packet <%d>: Failed\n", packets);
           exit(EXIT_FAILURE);
         }
         
-        printf("%02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX\n", buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7], buffer[8], buffer[9], buffer[10]);
-        printf("SFD: %4d, V: %4d, THETA1: %6d, THETA2 %6d, D3 %6d, CRC: %4d, EFD: %4d\n", frame->SFD, frame->VERSION, frame->THETA1, frame->THETA2, frame->D3, frame->CRC, frame->EFD);
-        
         // Send Frame to Arduino
+        int bytes_written;
+        if (rand() % 3 == 0) {
+          memcpy(corrupted_buffer, buffer, TX_PROTOCOL_SIZE);
+          corrupted_buffer[rand() % TX_PROTOCOL_SIZE] = 12;
+          printf("      Corrupted TX F<%d>: %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX\n", packets, corrupted_buffer[0], corrupted_buffer[1], corrupted_buffer[2], corrupted_buffer[3], corrupted_buffer[4], corrupted_buffer[5], corrupted_buffer[6], corrupted_buffer[7], corrupted_buffer[8], corrupted_buffer[9], corrupted_buffer[10], corrupted_buffer[11]);
+          bytes_written = write(serial, &corrupted_buffer, TX_PROTOCOL_SIZE);
+        }else{
+          bytes_written = write(serial, &buffer, TX_PROTOCOL_SIZE);
+        }
         time(&lastPackage);
-        int bytes_written = write(serial, &buffer, 11);
         if (bytes_written < 0)
         {
-          fprintf(stderr,"UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
+          fprintf(stderr,"      ! UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
         }
+        printf("      ----> Sent <%d> bytes to Motor Controller\n", bytes_written);
 
         receiveState = 1;
         packets++;   
@@ -129,28 +142,29 @@ int main(int argc, char** argv)
       time(&now);
       if (difftime(now, lastPackage) > RESEND_TIME)
       {
-        fprintf(stderr,"Expected Response. Resending Packet <%d>.\n", packets);
+        fprintf(stderr,"      Expected Response. Resending Packet <%d>.\n", packets);
         
-        int bytes_written = write(serial, &buffer, 11);
+        int bytes_written = write(serial, &buffer, TX_PROTOCOL_SIZE);
+        time(&lastPackage);
         if (bytes_written < 0)
         {
-          fprintf(stderr,"UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
+          fprintf(stderr,"      ! UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
         }
-        time(&lastPackage);
+        printf("      ----> Sent <%d> bytes to Motor Controller\n", bytes_written);
       }
 
       int message_recieved = 0;
       int bytesRead = 0;
       char SFD = StartFrameDelimiter;
-      char rx_buffer[PROTOCOL_SIZE] = {0};
+      char rx_buffer[RX_PROTOCOL_SIZE] = {0};
 
       while(1)
       {
-
         char data[1] = {0};
-        if (read(serial, (void*)data, 1) == 0)
-        // if (fread(data, sizeof(data[0]), 1, file) == 0)
+        if (read(serial, (void*)data, 1) <= 0)
           break;
+
+        printf("%02hhX%s", data[0], bytesRead%2 ? " ": "");
 
         if (bytesRead == 0)
         {
@@ -168,10 +182,10 @@ int main(int argc, char** argv)
         if (bytesRead == 1)
         {
           // Look for version size
-          if (data[0] != PROTOCOL_VERSION)
+          if (data[0] != RX_PROTOCOL_VERSION)
           {
               bytesRead = 0;
-              fprintf(stderr,"      Recieved Invalid Communication Protocol Version. Recieved <%d> expected <%d>\n", data[0], PROTOCOL_VERSION);
+              fprintf(stderr,"      Recieved Invalid Communication Protocol Version. Recieved <%d> expected <%d>\n", data[0], RX_PROTOCOL_VERSION);
               continue;
           }
 
@@ -180,52 +194,50 @@ int main(int argc, char** argv)
           continue;
         }
 
-        // The > check ensures that we don't overflow and
-        // that we discard bad messages
-        if (bytesRead >= PROTOCOL_SIZE)
-        {
-          // We are done with the message. Regardless of the outcome
-          // only a new message can come next      
-          bytesRead = 0;
-
-          // Check frame is uncorrupted using CRC
-          if (crcFast((unsigned char *) &rx_buffer, PROTOCOL_SIZE-1) != 0)
-          {
-            fprintf(stderr,"Recieved Malformed Communication Protocol Frame: CRC Failed\n");
-            message_recieved = 1;
-          }
-          break;
-        }
-        
         rx_buffer[bytesRead] = data[0];    
         ++bytesRead;
-      }
 
+        // The > check ensures that we don't overflow and
+        // that we discard bad messages
+        if (bytesRead >= RX_PROTOCOL_SIZE)
+        {
+
+          // We are done with the message. Regardless of the outcome
+          // only a new message can come next      
+          message_recieved = 1;
+          break;
+        }
+      }
 
       if (message_recieved == 1)
       {
         CPFrameVersion01 *frame = (CPFrameVersion01 *) &rx_buffer;
-        printf("%02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX\n", rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3], rx_buffer[4], rx_buffer[5], rx_buffer[6]);
-        printf("SFD: %4d, V: %4d, CODE: %6d, CRC: %4d, EFD: %4d\n", frame->SFD, frame->VERSION, frame->CODE, frame->CRC, frame->EFD);
+        printf("\n----> Recieved <%d> bytes from Motor Controller\n", bytesRead);
+        bytesRead = 0;
+        // printf("%02hhX%02hhX %02hhX%02hhX\n", rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3]);
+        printf("SFD: %4d, V: %4d, CODE: %6d, EFD: %4d\n", frame->SFD, frame->VERSION, frame->CODE, frame->EFD);
 
-        // Time to Trigger some Messages
+        // Trigger some Messages
+        if (frame->CODE == 40){
+          printf("Recieved Request to Resend Packet <%d>. Sending Immediately.\n", packets);
 
-        if (frame->CODE == 040){
-          receiveState = 0;
-          printf("Recieved Request to Resend. Sending Immediately.\n");
-          int bytes_written = write(serial, &buffer, 11);
+          int bytes_written;
+          if (rand() % 3 == 0){
+            bytes_written = write(serial, &corrupted_buffer, TX_PROTOCOL_SIZE);
+          }else{
+            bytes_written = write(serial, &buffer, TX_PROTOCOL_SIZE);            
+          }
+          time(&lastPackage);
           if (bytes_written < 0)
           {
             fprintf(stderr,"UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
           }
-          time(&lastPackage);
         }
-        if (frame->CODE == 041){
+        if (frame->CODE == 41){
           receiveState = 0;
-          printf("Recieved Acknowledgement\n");
+          printf("Recieved Acknowledgement. Moving to Next Packet\n");
         }
       }
-
     }
   }
 

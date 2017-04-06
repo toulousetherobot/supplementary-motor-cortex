@@ -6,9 +6,9 @@ int foo(int x);  /* An example function declaration */
 #define StartFrameDelimiter 0xAB
 #define EndOfFrame 0xCD
 
-#define CPV01_SIZE 7
+#define CPV01_SIZE 4
 #define CPV01_VERSION 1
-#define CPV02_SIZE 11
+#define CPV02_SIZE 12
 #define CPV02_VERSION 2
 #define CPV03_SIZE 15
 #define CPV03_VERSION 3
@@ -19,14 +19,14 @@ int foo(int x);  /* An example function declaration */
 typedef struct {
     unsigned char SFD;
     unsigned char VERSION;
-    int16_t CODE;
-    unsigned short CRC;
+    unsigned char CODE;
     unsigned char EFD;
 } __attribute__((packed)) CPFrameVersion01;
 
 typedef struct {
     unsigned char SFD;
     unsigned char VERSION;
+    unsigned char CODE;
     int16_t THETA1;
     int16_t THETA2;
     int16_t D3;

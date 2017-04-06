@@ -23,7 +23,7 @@
 /*
  * Select the CRC standard from the list that follows.
  */
-#define CRC16
+#define CRC_CCITT
 
 
 #if defined(CRC_CCITT)
