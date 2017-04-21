@@ -19,6 +19,8 @@
 #define TX_PROTOCOL_VERSION CPV02_VERSION
 #define TX_PROTOCOL_SIZE CPV02_SIZE
 
+#define JITTER 0
+
 int main(int argc, char** argv)
 {
   srand(time(NULL));   // should only be called once
@@ -116,7 +118,7 @@ int main(int argc, char** argv)
         
         // Send Frame to Arduino
         int bytes_written;
-        if (rand() % 3 == 0) {
+        if (JITTER && rand() % 3 == 0) {
           memcpy(corrupted_buffer, buffer, TX_PROTOCOL_SIZE);
           corrupted_buffer[rand() % TX_PROTOCOL_SIZE] = 12;
           printf("      Corrupted TX F<%d>: %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX %02hhX%02hhX\n", packets, corrupted_buffer[0], corrupted_buffer[1], corrupted_buffer[2], corrupted_buffer[3], corrupted_buffer[4], corrupted_buffer[5], corrupted_buffer[6], corrupted_buffer[7], corrupted_buffer[8], corrupted_buffer[9], corrupted_buffer[10], corrupted_buffer[11]);
@@ -222,7 +224,7 @@ int main(int argc, char** argv)
           printf("Recieved Request to Resend Packet <%d>. Sending Immediately.\n", packets);
 
           int bytes_written;
-          if (rand() % 3 == 0){
+          if (JITTER && rand() % 3 == 0){
             bytes_written = write(serial, &corrupted_buffer, TX_PROTOCOL_SIZE);
           }else{
             bytes_written = write(serial, &buffer, TX_PROTOCOL_SIZE);            
