@@ -18,6 +18,17 @@
 #define ElbowPanLinkLength 8.75
 #define PPI 72
 
+#define ZDrawingPlane 0
+#define ZRetractPlane 15
+
+#define ZActuatorCalibrationBL 200
+#define ZActuatorCalibrationBR 300
+#define ZActuatorCalibrationTL 550
+#define ZActuatorCalibrationTR 750
+
+#define WorkspaceLength 15.5
+#define WorkspaceWidth 9.5
+
 #define SPLINE_LENGTH_ERROR 1e-5
 #define SPLINE_LENGTH_MIN_DEPTH 5
 
@@ -49,6 +60,16 @@ tsRational spline_length(tsBSpline *spline, tsRational start, tsRational end, ts
   }
 
   return length2;
+}
+
+// Returns the value to be added to the computed actuator value to account for the arm plane not being parallel to the paper plane
+float actuator_delta(float x, float y) {
+  // The two deltas for each direction SHOULD be the same, but we average them in practice.
+  float slope_x = ((ZActuatorCalibrationBR - ZActuatorCalibrationBL + ZActuatorCalibrationTR - ZActuatorCalibrationTL) * 0.5) / WorkspaceLength;
+  float slope_y = ((ZActuatorCalibrationTL - ZActuatorCalibrationBL + ZActuatorCalibrationTR - ZActuatorCalibrationBR) * 0.5) / WorkspaceWidth;
+
+  // We assume an origin at the bottom left.
+  return x * slope_x + y * slope_y + slope_x*(WorkspaceWidth/2.0);
 }
 
 tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
