@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h> // Required for <tinyspline.h>, M_PI, atan2, sin, cos
+#include <math.h> // Required for <tinyspline.h>, M_PI, atan2, sin, cos, sqrt
 #include <errno.h> // Error Checking
 #include <string.h> // Required for strerror, <crc.h>
 #include <arpa/inet.h>
@@ -18,10 +18,56 @@
 #define ElbowPanLinkLength 8.75
 #define PPI 72
 
+#define SPLINE_LENGTH_ERROR 1e-5
+#define SPLINE_LENGTH_MIN_DEPTH 5
+
+tsRational linear_length(tsRational start_x, tsRational start_y, tsRational end_x, tsRational end_y)
+{
+  return sqrt(pow((start_x - end_x),2) + pow((start_y - end_y),2));
+}
+
+tsRational spline_length(tsBSpline *spline, tsRational start, tsRational end, tsRational start_x, tsRational start_y, tsRational end_x, tsRational end_y, size_t depth)
+{
+  tsRational mid = (start + end) / 2.f;
+
+  tsDeBoorNet mid_point;
+  ts_bspline_evaluate(spline, mid, &mid_point);
+
+  tsRational mid_x = mid_point.result[0];
+  tsRational mid_y = mid_point.result[1];
+  ts_deboornet_free(&mid_point); // Cleanup
+
+  tsRational length = linear_length(end_x, end_y, start_x, start_y);
+  tsRational first_half = linear_length(mid_x, mid_y, start_x, start_y);
+  tsRational second_half = linear_length(end_x, end_y, mid_x, mid_y);
+
+  tsRational length2 = first_half + second_half;
+  if ((length2 - length > SPLINE_LENGTH_ERROR) || (depth < SPLINE_LENGTH_MIN_DEPTH))
+  {
+    depth++;
+    return spline_length(spline, start, mid, start_x, start_y, mid_x, mid_y, depth) + spline_length(spline, mid, end, mid_x, mid_y, end_x, end_y, depth);
+  }
+
+  return length2;
+}
+
 tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
 {
   tsRational u;
   tsDeBoorNet net;
+
+  // Calculate Length
+  tsDeBoorNet start, end;
+  ts_bspline_evaluate(spline, 0, &start);
+  ts_bspline_evaluate(spline, 1, &end);
+
+  tsRational length = spline_length(spline, 0, 1, start.result[0], start.result[1], end.result[0], end.result[1], 0);
+  length = length/PPI; // Convert to Inches
+  increment = increment/length;
+
+  // Clean up Calculate Length
+  ts_deboornet_free(&start);
+  ts_deboornet_free(&end);
 
   *size = 1.f/increment;
 
