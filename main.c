@@ -15,19 +15,56 @@
 #define MaxCtrlPointsExtent 100 /* always >= 50 */
 
 #define ShoulderPanLinkLength 8.75
-#define ElbowPanLinkLength 8.75
+// #define ElbowPanLinkLength 8.75
+#define ElbowPanLinkLength 9.695
 #define PPI 72
+
+// #define ZDrawingPlane 50
+#define ZDrawingPlane 0
+#define ZRetractPlane 15
+
+#define ZActuatorCalibrationBL 200
+#define ZActuatorCalibrationBR 300
+#define ZActuatorCalibrationTL 550
+#define ZActuatorCalibrationTR 750
+
+#define WorkspaceLength 15.5
+#define WorkspaceWidth 9.5
+
+// Returns the value to be added to the computed actuator value to account for the arm plane not being parallel to the paper plane
+float actuator_delta(float x, float y) {
+  // The two deltas for each direction SHOULD be the same, but we average them in practice.
+  float slope_x = ((ZActuatorCalibrationBR - ZActuatorCalibrationBL + ZActuatorCalibrationTR - ZActuatorCalibrationTL) * 0.5) / WorkspaceLength;
+  float slope_y = ((ZActuatorCalibrationTL - ZActuatorCalibrationBL + ZActuatorCalibrationTR - ZActuatorCalibrationBR) * 0.5) / WorkspaceWidth;
+
+  // We assume an origin at the bottom left.
+  return x * slope_x + y * slope_y + slope_x*(WorkspaceWidth/2.0);
+  // return 0;
+}
 
 tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
 {
   tsRational u;
   tsDeBoorNet net;
 
+  // *size = 1.f/increment + 2;
   *size = 1.f/increment;
 
   tsRational **cartesian = malloc(sizeof(tsRational *)* (*size));
 
   size_t i = 0;
+
+  // {
+  //   ts_bspline_evaluate(spline, 0.f, &net);
+  //   tsRational *result = malloc(sizeof(tsRational) * 3);
+  //   result[0] = net.result[0]/PPI - 8.5; // x
+  //   result[1] = 15 - net.result[1]/PPI; // y
+  //   result[2] = -1; // z
+  //   cartesian[i] = result;
+  //   printf("%zd, %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+  //   i++;
+  // }
+
   for (u = 0.f; u <= 1.f; u += increment)
   {
     ts_bspline_evaluate(spline, u, &net);
@@ -35,11 +72,26 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
     // Store in Memmory
     tsRational *result = malloc(sizeof(tsRational) * 3);
     result[0] = net.result[0]/PPI - 8.5; // x
+    // result[0] = result[0] - 0.25; // TMP Adjustment for Strange Paper
     result[1] = 15 - net.result[1]/PPI; // y
+    // result[1] = result[1]-3.0; // y
     result[2] = 0; // z
     cartesian[i] = result;
+    // printf("%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
     i++;
+
   }
+
+  // {
+  //   tsRational *result = malloc(sizeof(tsRational) * 3);
+  //   result[0] = net.result[0]/PPI - 8.5; // x
+  //   result[1] = 15 - net.result[1]/PPI; // y
+  //   result[2] = -1; // z
+  //   cartesian[i] = result;
+  //   printf("%zd, %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+  // }
+
+  // printf("Size: %zd, i: %zd\n", *size, i);
 
   ts_deboornet_free(&net);
 
@@ -49,40 +101,82 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
 tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
 {
 
-  tsRational **transformation = malloc(sizeof(tsRational *)* size);
+  float **transformation = malloc(sizeof(float *)* size);
 
   size_t i;
-  for (i = 0; i < size; i++)
+  for (i = 0; i <= size; i++)
   {
-    tsRational *result = malloc(sizeof(tsRational) * 3);
-    float theta1, theta2, r;
-
-    r = (pow(cartesian[i][0],2)+pow(cartesian[i][1],2)-pow(ShoulderPanLinkLength,2)-pow(ElbowPanLinkLength,2))/(2*ShoulderPanLinkLength*ElbowPanLinkLength);
-    theta2 = atan2(sqrt(1-pow(r,2)),r);
-    theta1 = atan2(cartesian[i][1], cartesian[i][0]) - atan2(ElbowPanLinkLength*sin(theta2), ShoulderPanLinkLength+ElbowPanLinkLength*cos(theta2));
-
-    result[0] = roundf(theta1*437.04);
-    result[1] = roundf(theta2*437.04);
-    result[2] = (rand() % 975) + 15;
+    float *result = malloc(sizeof(float) * 3);
+    result[0] = 10;
+    result[1] = 20;
+    result[2] = 30;
     transformation[i] = result;
   }
-  
+
   return transformation;
+
+  // tsRational **transformation = malloc(sizeof(tsRational *)* size);
+
+  // size_t i;
+  // for (i = 0; i <= size; i++)
+  // {
+  //   tsRational result[3];
+  //   // tsRational *result = malloc(sizeof(tsRational) * 3);
+  //   memset(result, 0, sizeof(tsRational) * 3);
+  //   // float theta1, theta2, r;
+
+  //   // r = (pow(cartesian[i][0],2)+pow(cartesian[i][1],2)-pow(ShoulderPanLinkLength,2)-pow(ElbowPanLinkLength,2))/(2*ShoulderPanLinkLength*ElbowPanLinkLength);
+  //   // theta2 = atan2(sqrt(1-pow(r,2)),r);
+  //   // theta1 = atan2(cartesian[i][1], cartesian[i][0]) - atan2(ElbowPanLinkLength*sin(theta2), ShoulderPanLinkLength+ElbowPanLinkLength*cos(theta2));
+
+  //   result[0] = 30;
+  //   result[1] = 40;
+  //   result[2] = 50;
+  //   // // result[0] = roundf(theta1*437.04);
+  //   // result[3] = 40;
+  //   // // result[1] = roundf(theta2*437.04);
+  //   // result[4] = 50;
+  //   // result[5] = 60;
+  //   // if (cartesian[i][2] == -1){
+  //   //   result[2] = ZRetractPlane;
+  //   // }else{
+  //   //   result[2] = ZDrawingPlane+actuator_delta(cartesian[i][0], cartesian[i][1]);
+  //   // }
+
+  //   transformation[i] = result;
+
+  //   // printf("R%zd, %f, %f, %f, %f, %f, %f\n", i, result[0], result[1], result[2], result[3], result[4], result[5]);
+  //   // printf("R%zd, %f, %f, %f\n", i, result[0], result[1], result[2]);
+  //   printf("R%zd, %f, %f, %f\n", i, transformation[i][0], transformation[i][1], transformation[i][2]);
+
+  // }
+
+  // size_t q;
+  // for (q = 0; q <= size; q++)
+  // {
+  //   tsRational *result = transformation[q];
+  //   printf("TQ%zd, %f, %f, %f\n", q, result[0], result[1], result[2]);
+  // }
+
+  // // printf("Recieved Size: %zd, i: %zd\n", size, i);
+  
+  // return transformation;
 }
 
 CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t size)
 {
   CPFrameVersion02 *packets = malloc(sizeof(tsRational *)* size);
   size_t i;
-  for (i = 0; i < size; i++)
+  for (i = 0; i <= size; i++)
   {
     tsRational *result = transformation[i];
     short theta1, theta2, d3;
     theta1 = floor(result[0]); theta2 = floor(result[1]); d3 = floor(result[2]);
     CPFrameVersion02 frame = {StartFrameDelimiter, CPV02_VERSION, 0, theta1, theta2, d3, 0, EndOfFrame};
     frame.CRC = crcFast((unsigned char *) &frame, CPV02_SIZE-3);
-    printf("%d\n", frame.CRC);
     packets[i] = frame;
+
+    printf("P%zd, <%f> %hd, <%f> %hd, <%f> %hd\n", i, result[0], theta1, result[1], theta2, result[2], d3);
   }
 
   return packets;
@@ -213,21 +307,28 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
       // Transform Spline to Inverse Kinematics
       size_t size;
       tsRational **cartesian, **transformation;
-      cartesian = spline_to_cartesian(&spline, 0.1f, &size);
+      cartesian = spline_to_cartesian(&spline, 0.25f, &size);
+      size = 4;
       transformation = cartesian_to_motor_angles(cartesian, size);
 
-      // Form Packet
-      CPFrameVersion02 *packets = motor_angles_to_packet(transformation, size);
-
-      for (i = 0; i < size; i++)
+      size_t q;
+      for (q = 0; q <= size; q++)
       {
-        size_t bytes_written = fwrite(&packets[i], sizeof(CPFrameVersion02), 1, packets_buffer);
-        if (bytes_written != 1)
-        {
-          fprintf(stderr,"Error: File Write Operation\n");
-          exit(EXIT_FAILURE);
-        }
+        printf("TT%zd, %f, %f, %f\n", q, transformation[q][0], transformation[q][1], transformation[q][2]);
       }
+
+      // // Form Packet
+      // CPFrameVersion02 *packets = motor_angles_to_packet(transformation, size);
+
+      // for (i = 0; i < size; i++)
+      // {
+      //   size_t bytes_written = fwrite(&packets[i], sizeof(CPFrameVersion02), 1, packets_buffer);
+      //   if (bytes_written != 1)
+      //   {
+      //     fprintf(stderr,"Error: File Write Operation\n");
+      //     exit(EXIT_FAILURE);
+      //   }
+      // }
 
       // Clean Up
       cartesian = destroy_cartesian(cartesian, size);

@@ -29,6 +29,8 @@ tinyspline.o: tinyspline.c
 
 crc.o: crc.c crc.h
 
+test: test.o
+
 RMC_communication_daemon: RMC_communication_daemon.o crc.o
 
 RMC_communication_daemon.o: RMC_communication_daemon.c CPFrames.h crc.h
