@@ -20,6 +20,7 @@
 #define TX_PROTOCOL_SIZE CPV02_SIZE
 
 #define JITTER 0
+#define HOLDING 1
 
 int main(int argc, char** argv)
 {
@@ -237,7 +238,15 @@ int main(int argc, char** argv)
         }
         if (frame->CODE == 41){
           receiveState = 0;
-          printf("Recieved Acknowledgement. Moving to Next Packet\n");
+          if (HOLDING){
+            printf("Recieved Acknowledgement. Waiting for User to send to Next Packet. Press Any Key to Continue: ");
+            fflush(stdout);
+            getchar();
+            printf("Moving to Next Packet.\n");
+
+          }else{
+            printf("Recieved Acknowledgement. Moving to Next Packet\n");
+          }
         }
       }
     }
