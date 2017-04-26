@@ -21,6 +21,9 @@ LDFLAGS = -g $(shell pkg-config --libs json-c) $(shell pkg-config --libs librabb
 
 LDLIBS = -lm
 
+.PHONY: principal
+principal: main RMC_communication_daemon
+
 main: main.o tinyspline.o crc.o
 
 main.o: main.c tinyspline.h CPFrames.h crc.h
@@ -40,4 +43,4 @@ clean:
 	rm -f *.o a.out core main RMC_communication_daemon
 
 .PHONY: all
-all: clean main
+all: clean principal
