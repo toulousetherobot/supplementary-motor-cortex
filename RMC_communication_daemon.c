@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <errno.h> // Error Checking
 #include <string.h> // Required for strerror()
+#include "json.h"
 
 #include "crc.h"
 
@@ -21,6 +22,27 @@
 
 #define JITTER 0
 #define HOLDING 1
+
+const char *form_update_os_payload(int frame_number, CPFrameVersion02 *frame){
+  /*Creating a json object*/
+  json_object * jobj = json_object_new_object();
+
+  /*Creating a json integer*/
+  json_object *jfrm = json_object_new_int(frame_number);
+  json_object *jtheta1 = json_object_new_int(frame->THETA2);
+  json_object *jtheta2 = json_object_new_int(frame->THETA1);
+  json_object *jd3 = json_object_new_int(frame->D3);
+
+  /*Form the json object*/
+  /*Each of these is like a key value pair*/
+  json_object_object_add(jobj,"frame", jfrm);
+  json_object_object_add(jobj,"theta1", jtheta1);
+  json_object_object_add(jobj,"theta2", jtheta2);
+  json_object_object_add(jobj,"d3", jd3);
+
+  /*Now printing the json object*/
+  return json_object_to_json_string(jobj);
+}
 
 int main(int argc, char** argv)
 {

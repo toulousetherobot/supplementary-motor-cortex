@@ -8,13 +8,13 @@ INCLUDES =
 # Compilation options:
 # -g for debugging info and -Wall enables all warnings
 
-CFLAGS   = -g -Wall $(INCLUDES)
+CFLAGS   = -g -Wall $(INCLUDES) $(shell pkg-config --cflags json-c)
 CXXFLAGS = -g -Wall $(INCLUDES)
 
 # Linking options:
 # -g for debugging info
 
-LDFLAGS = -g 
+LDFLAGS = -g $(shell pkg-config --libs json-c)
 
 # List the libraries you need to link with in LDLIBS
 # For example, use "-lm" for the math library
