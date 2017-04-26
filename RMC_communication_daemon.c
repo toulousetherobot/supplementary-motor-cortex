@@ -43,6 +43,7 @@ int main(int argc, char** argv)
   FILE* file = fopen(argv[1], "rb");
   if(file == NULL)
   {
+    send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("File Null Error", "error", strerror(errno)));
     fprintf(stderr,"File Null Error <%s>: %s\n", argv[1], strerror(errno));
     exit(EXIT_FAILURE);
   }
@@ -71,6 +72,7 @@ int main(int argc, char** argv)
   serial = open(SERIAL_DEVICE, O_RDWR | O_NOCTTY | O_NDELAY);    //Open in non blocking read/write mode
   if (serial == -1)
   {
+    send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("UART Error", "error", "Unable to open UART.  Ensure it is not in use by another application"));
     fprintf(stderr,"UART Error <%s>: %s\n", argv[1], "Unable to open UART.  Ensure it is not in use by another application");
     exit(EXIT_FAILURE);
   }
@@ -121,7 +123,12 @@ int main(int argc, char** argv)
         // Check frame is uncorrupted using CRC
         if (crcFast((unsigned char *) &buffer, TX_PROTOCOL_SIZE-3) != frame->CRC)
         {
-          fprintf(stderr,"      ! CRC Check on Packet <%d>: Failed\n", packets);
+          {
+            char message_buffer[50];
+            sprintf(message_buffer, "CRC Check on Packet <%d> Failed.", packets);
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Checksum Failed", "error", message_buffer));
+            fprintf(stderr,"      %s\n", message_buffer);
+          }
           exit(EXIT_FAILURE);
         }
         
@@ -138,7 +145,13 @@ int main(int argc, char** argv)
         time(&lastPackage);
         if (bytes_written < 0)
         {
-          fprintf(stderr,"      ! UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
+          {
+            char message_buffer[50];
+            sprintf(message_buffer, "UART TX error on serial connection <%s>.", SERIAL_DEVICE);
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("UART Error", "error", message_buffer));
+            fprintf(stderr,"      ! %s\n", message_buffer);
+          }
+          exit(EXIT_FAILURE);
         }
         printf("      ----> Sent <%d> bytes to Motor Controller\n", bytes_written);
 
@@ -153,13 +166,24 @@ int main(int argc, char** argv)
       time(&now);
       if (difftime(now, lastPackage) > RESEND_TIME)
       {
-        fprintf(stderr,"      Expected Response. Resending Packet <%d>.\n", packets);
+        {
+          char message_buffer[50];
+          sprintf(message_buffer, "Expected Response. Resending Packet <%d>.", packets-1);
+          send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Response Timeout", "warning", message_buffer));
+          fprintf(stderr,"      %s\n", message_buffer);
+        }
         
         int bytes_written = write(serial, &buffer, TX_PROTOCOL_SIZE);
         time(&lastPackage);
         if (bytes_written < 0)
         {
-          fprintf(stderr,"      ! UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
+          {
+            char message_buffer[50];
+            sprintf(message_buffer, "UART TX error on serial connection <%s>.", SERIAL_DEVICE);
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("UART Error", "error", message_buffer));
+            fprintf(stderr,"      ! %s\n", message_buffer);
+          }
+          exit(EXIT_FAILURE);
         }
         printf("      ----> Sent <%d> bytes to Motor Controller\n", bytes_written);
       }
@@ -196,7 +220,12 @@ int main(int argc, char** argv)
           if (data[0] != RX_PROTOCOL_VERSION)
           {
               bytesRead = 0;
-              fprintf(stderr,"      Recieved Invalid Communication Protocol Version. Recieved <%d> expected <%d>\n", data[0], RX_PROTOCOL_VERSION);
+              {
+                char message_buffer[50];
+                sprintf(message_buffer, "Recieved Invalid Communication Protocol Version. Recieved <%d> expected <%d>", data[0], RX_PROTOCOL_VERSION);
+                send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("CP Protocol Error", "warning", message_buffer));
+                fprintf(stderr,"      %s\n", message_buffer);
+              }
               continue;
           }
 
@@ -229,8 +258,55 @@ int main(int argc, char** argv)
         printf("SFD: %4d, V: %4d, CODE: %6d, EFD: %4d\n", frame->SFD, frame->VERSION, frame->CODE, frame->EFD);
 
         // Trigger some Messages
-        if (frame->CODE == 40){
-          printf("Recieved Request to Resend Packet <%d>. Sending Immediately.\n", packets);
+        if (frame->CODE == 1){ // Category 0 Emergency Stop
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Emergency Stop (0)", "error", "An uncontrolled stop by immediately removing power to the machine actuators."));
+        }
+        if (frame->CODE == 2){ // Category 1 Emergency Stop
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Emergency Stop (1)", "error", "A controlled stop with power to the machine actuators available to achieve the stop then remove power when the stop is achieved."));
+        }
+        if (frame->CODE == 3){ // Category 2 Emergency Stop
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Emergency Stop (2)", "error", "A controlled stop with power left available to the machine actuators."));
+        }
+        if (frame->CODE == 10){ // Shoulder Pan Link Limit Switch 1 Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Shoulder Pan Limit Switch 1 Hit", "error", "Shoulder Pan Link has exceeded the movement limits set by the physical hard stop through excessive motion clockwise."));
+        }
+        if (frame->CODE == 11){ // Shoulder Pan Link Limit Switch 2 Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Shoulder Pan Limit Switch 2 Hit", "error", "Shoulder Pan Link has exceeded the movement limits set by the physical hard stop through excessive motion counter-clockwise."));
+        }
+        if (frame->CODE == 12){ // Elbow Pan Link Limit Switch 1 Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Elbow Pan Limit Switch 1 Hit", "error", "Elbow Pan Link has exceeded the movement limits set by the physical hard stop through excessive motion clockwise."));
+        }
+        if (frame->CODE == 13){ // Elbow Pan Link Limit Switch 2 Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Elbow Pan Limit Switch 2 Hit", "error", "Elbow Pan Link has exceeded the movement limits set by the physical hard stop through excessive motion counter-clockwise."));
+        }
+        if (frame->CODE == 14){ // Wrist Flex Link Limit Switch Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Wrist Flex Limit Switch Hit", "error", "Wrist Flex Link has exceeded the movement limits set by the physical hard stop through excessive motion clockwise."));
+        }
+        if (frame->CODE == 15){ // Wrist Flex Link Soft Limit Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Wrist Flex Soft Limit Hit", "warning", "Wrist Flex Link has exceeded the movement limits set by software through excessive motion counter-clockwise."));
+        }
+        if (frame->CODE == 16){ // Wrist Roll Link Limit Switch Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Wrist Roll Limit Switch Hit", "error", "Wrist Roll Link has exceeded the movement limits set by the physical hard stop through excessive motion clockwise."));
+        }
+        if (frame->CODE == 17){ // Wrist Roll Link Soft Limit Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Wrist Roll Soft Limit Hit", "warning", "Wrist Roll Link has exceeded the movement limits set by software through excessive motion counter-clockwise."));
+        }
+        if (frame->CODE == 18){ // Wrist Extension Link End of Travel Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Wrist Extension End of Travel Hit", "error", "Wrist Roll Link has exceeded the movement limits set by the physical hard stop through excessive motion driving down into the page."));
+        }
+        if (frame->CODE == 19){ // Wrist Extension Link Start of Travel Hit
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Wrist Extension Start of Travel Hit", "error", "Wrist Roll Link has exceeded the movement limits set by the physical hard stop through excessive motion driving up out of the page."));
+        }
+        if (frame->CODE == 20){ // Complex Collision Detected
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Complex Collision Detected", "error", "Some complex combination of motor joints has caused the Robot wrist to collide with the Robot shelf."));
+        }
+        if (frame->CODE == 40){ // Resend Message
+          {
+            char message_buffer[50];
+            sprintf(message_buffer, "Recieved Request to Resend Packet <%d>. Sending Immediately.", packets-1);
+            send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Requested to Resend Packet", "info", message_buffer));
+            printf("%s\n", message_buffer);
+          }
 
           int bytes_written;
           if (JITTER && rand() % 3 == 0){
@@ -244,7 +320,7 @@ int main(int argc, char** argv)
             fprintf(stderr,"UART TX error on serial connection <%s>.\n", SERIAL_DEVICE);
           }
         }
-        if (frame->CODE == 41){
+        if (frame->CODE == 41){ // Message Acknowledge
           receiveState = 0;
           if (HOLDING){
             printf("Recieved Acknowledgement. Waiting for User to send to Next Packet. Press Any Key to Continue: ");
@@ -255,13 +331,21 @@ int main(int argc, char** argv)
           }else{
             printf("Recieved Acknowledgement. Moving to Next Packet\n");
           }
+
+          CPFrameVersion02 *processed_frame = (CPFrameVersion02 *) &buffer;
+          send_amqp_message(&conn, TOULOUSE_AMPQ_STATE_ROUTING_KEY, form_update_os_payload(packets, processed_frame));
         }
       }
     }
   }
 
   // Cleanup 
-  printf("Sucessfully sent all <%d> scheduled packets in <%s> to Motor Controller. Closing serial connection at <%s>.\n", packets, argv[1], SERIAL_DEVICE);
+  {
+    char message_buffer[50];
+    sprintf(message_buffer, "Sucessfully sent all <%d> scheduled packets in <%s> to Motor Controller. Closing serial connection at <%s>.", packets, argv[1], SERIAL_DEVICE);
+    send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("Sent All Packets", "success", message_buffer));
+    printf("%s\n", message_buffer);
+  }
   fclose(file);
   close(serial);
   close_amqp_conn(&conn);

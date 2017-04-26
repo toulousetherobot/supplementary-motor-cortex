@@ -135,7 +135,7 @@ int close_amqp_conn(amqp_connection_state_t *connection)
   return status;
 }
 
-int send_amqp_message(amqp_connection_state_t *connection, const char *messagebody)
+int send_amqp_message(amqp_connection_state_t *connection, const char* routingkey, const char *messagebody)
 {
   int status;
 
@@ -144,7 +144,7 @@ int send_amqp_message(amqp_connection_state_t *connection, const char *messagebo
   props.content_type = amqp_cstring_bytes("text/plain");
   props.delivery_mode = 2;  //persistent delivery mode 
 
-  status = amqp_basic_publish((*connection), 1, amqp_cstring_bytes(TOULOUSE_AMPQ_EXCHANGE), amqp_cstring_bytes(TOULOUSE_AMPQ_ROUTING_KEY),
+  status = amqp_basic_publish((*connection), 1, amqp_cstring_bytes(TOULOUSE_AMPQ_EXCHANGE), amqp_cstring_bytes(routingkey),
     0, 0, &props, amqp_cstring_bytes(messagebody));
   if (status < 0) {
     fprintf(stderr, "Sending Message: %s\n", amqp_error_string2(status));
