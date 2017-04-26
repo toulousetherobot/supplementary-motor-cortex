@@ -1,8 +1,6 @@
 #ifndef CPFRAMES_H
 #define CPFRAMES_H
 
-int foo(int x);  /* An example function declaration */
-
 #define StartFrameDelimiter 0xAB
 #define EndOfFrame 0xCD
 
