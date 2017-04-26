@@ -44,6 +44,25 @@ const char *form_update_os_payload(int frame_number, CPFrameVersion02 *frame){
   return json_object_to_json_string(jobj);
 }
 
+const char *form_message_payload(const char *title, const char *type, const char *footnote){
+  /*Creating a json object*/
+  json_object * jobj = json_object_new_object();
+
+  /*Creating a json string*/
+  json_object *jtitle = json_object_new_string(title);
+  json_object *jtype = json_object_new_string(type);
+  json_object *jfootnote = json_object_new_string(footnote);
+
+  /*Form the json object*/
+  /*Each of these is like a key value pair*/
+  json_object_object_add(jobj,"title", jtitle);
+  json_object_object_add(jobj,"type", jtype);
+  json_object_object_add(jobj,"footnote", jfootnote);
+
+  /*Now printing the json object*/
+  return json_object_to_json_string(jobj);
+}
+
 int main(int argc, char** argv)
 {
   srand(time(NULL));   // should only be called once
