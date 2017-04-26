@@ -7,11 +7,14 @@
 #include <arpa/inet.h>
 #include <errno.h> // Error Checking
 #include <string.h> // Required for strerror()
-#include "json.h"
+#include <amqp_tcp_socket.h>
+#include <amqp_framing.h>
+#include <amqp.h>
 
 #include "crc.h"
 
 #include "CPFrames.h"
+#include "os_communication.h"
 
 #define SERIAL_DEVICE "/dev/serial0"
 #define RESEND_TIME 5
@@ -23,48 +26,12 @@
 #define JITTER 0
 #define HOLDING 1
 
-const char *form_update_os_payload(int frame_number, CPFrameVersion02 *frame){
-  /*Creating a json object*/
-  json_object * jobj = json_object_new_object();
-
-  /*Creating a json integer*/
-  json_object *jfrm = json_object_new_int(frame_number);
-  json_object *jtheta1 = json_object_new_int(frame->THETA2);
-  json_object *jtheta2 = json_object_new_int(frame->THETA1);
-  json_object *jd3 = json_object_new_int(frame->D3);
-
-  /*Form the json object*/
-  /*Each of these is like a key value pair*/
-  json_object_object_add(jobj,"frame", jfrm);
-  json_object_object_add(jobj,"theta1", jtheta1);
-  json_object_object_add(jobj,"theta2", jtheta2);
-  json_object_object_add(jobj,"d3", jd3);
-
-  /*Now printing the json object*/
-  return json_object_to_json_string(jobj);
-}
-
-const char *form_message_payload(const char *title, const char *type, const char *footnote){
-  /*Creating a json object*/
-  json_object * jobj = json_object_new_object();
-
-  /*Creating a json string*/
-  json_object *jtitle = json_object_new_string(title);
-  json_object *jtype = json_object_new_string(type);
-  json_object *jfootnote = json_object_new_string(footnote);
-
-  /*Form the json object*/
-  /*Each of these is like a key value pair*/
-  json_object_object_add(jobj,"title", jtitle);
-  json_object_object_add(jobj,"type", jtype);
-  json_object_object_add(jobj,"footnote", jfootnote);
-
-  /*Now printing the json object*/
-  return json_object_to_json_string(jobj);
-}
-
 int main(int argc, char** argv)
 {
+  amqp_connection_state_t conn;
+
+  open_amqp_conn(&conn);
+
   srand(time(NULL));   // should only be called once
 
   if (argc != 2)
@@ -297,5 +264,6 @@ int main(int argc, char** argv)
   printf("Sucessfully sent all <%d> scheduled packets in <%s> to Motor Controller. Closing serial connection at <%s>.\n", packets, argv[1], SERIAL_DEVICE);
   fclose(file);
   close(serial);
+  close_amqp_conn(&conn);
   return 0;
 }
