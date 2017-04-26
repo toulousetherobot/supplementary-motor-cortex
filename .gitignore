@@ -1,3 +1,7 @@
+# Curve & Packet files
+*.crv
+*.pkt
+
 # Object files
 *.o
 *.ko
