@@ -33,7 +33,7 @@ int main(int argc, char** argv)
   crcInit();
 	short  code, theta1, theta2, d3;
 	code = floor(raw_code); theta1 = floor(roundf(raw_theta1*437.04)); theta2 = floor(roundf(raw_theta2*437.04)); d3 = floor(raw_d3);
-	CPFrameVersion02 frame = {StartFrameDelimiter, CPV02_VERSION, raw_code, theta1, theta2, d3, 0, EndOfFrame};
+	CPFrameVersion02 frame = {StartFrameDelimiter, CPV02_VERSION, code, theta1, theta2, d3, 0, EndOfFrame};
 	frame.CRC = crcFast((unsigned char *) &frame, CPV02_SIZE-3);
 
 	unsigned char buffer[CPV02_SIZE];
@@ -102,4 +102,6 @@ int main(int argc, char** argv)
     exit(EXIT_FAILURE);
   }
   printf("      ----> Sent <%d> bytes to Motor Controller\n", bytes_written);
+
+  return EXIT_SUCCESS;
 }
