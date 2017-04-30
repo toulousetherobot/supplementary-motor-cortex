@@ -28,6 +28,10 @@ main: main.o tinyspline.o crc.o
 
 main.o: main.c tinyspline.h CPFrames.h crc.h
 
+send_RMC: send_RMC.o crc.o
+
+send_RMC.o: send_RMC.c CPFrames.h crc.h
+
 tinyspline.o: tinyspline.c
 
 crc.o: crc.c crc.h
