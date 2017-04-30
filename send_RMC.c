@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 
   crcInit();
 	short  code, theta1, theta2, d3;
-	code = floor(raw_code); theta1 = floor(roundf(raw_theta1*437.04)); theta2 = floor(roundf(raw_theta2*437.04)); d3 = floor(raw_d3);
+	code = floor(raw_code); theta1 = floor(raw_theta1); theta2 = floor(raw_theta2); d3 = floor(raw_d3);
 	CPFrameVersion02 frame = {StartFrameDelimiter, CPV02_VERSION, code, theta1, theta2, d3, 0, EndOfFrame};
 	frame.CRC = crcFast((unsigned char *) &frame, CPV02_SIZE-3);
 
