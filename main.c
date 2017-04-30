@@ -85,16 +85,32 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
   tsRational length = spline_length(spline, 0, 1, start.result[0], start.result[1], end.result[0], end.result[1], 0);
   length = length/PPI; // Convert to Inches
   increment = increment/length;
+  increment = 0.25;
 
   // Clean up Calculate Length
   ts_deboornet_free(&start);
   ts_deboornet_free(&end);
 
-  *size = 1.f/increment;
+  *size = 1.f/increment + 3;
 
   tsRational **cartesian = malloc(sizeof(tsRational *)* (*size));
 
   size_t i = 0;
+
+  {
+    ts_bspline_evaluate(spline, 0.f, &net);
+
+    tsRational *result = malloc(sizeof(tsRational) * 3);
+    result[0] = net.result[0]/PPI - 8.5; // x
+    result[1] = 15 - net.result[1]/PPI; // y
+    result[2] = -1; // z
+    cartesian[i] = result;
+    // printf("S%zd (0), %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+    i++;
+
+    ts_deboornet_free(&net);
+  }
+
   for (u = 0.f; u <= 1.f; u += increment)
   {
     ts_bspline_evaluate(spline, u, &net);
@@ -105,17 +121,26 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
     result[1] = 15 - net.result[1]/PPI; // y
     result[2] = 0; // z
     cartesian[i] = result;
+    // printf("%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
     i++;
+
+    ts_deboornet_free(&net);
   }
 
-  ts_deboornet_free(&net);
+  {
+    tsRational *result = malloc(sizeof(tsRational) * 3);
+    result[0] = cartesian[i-1][0]; // x
+    result[1] = cartesian[i-1][1]; // y
+    result[2] = -1; // z
+    cartesian[i] = result;
+    // printf("E%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+  }
 
   return cartesian;
 }
 
 tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
 {
-
   tsRational **transformation = malloc(sizeof(tsRational *)* size);
 
   size_t i;
@@ -130,16 +155,21 @@ tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
 
     result[0] = roundf(theta1*437.04);
     result[1] = roundf(theta2*437.04);
-    result[2] = (rand() % 975) + 15;
+    if (cartesian[i][2] == -1){
+      result[2] = ZRetractPlane;
+    }else{
+      result[2] = ZDrawingPlane + actuator_delta(cartesian[i][0], cartesian[i][1]);
+    }
     transformation[i] = result;
+    // printf("C%zd, %f, %f, %f\n", i, transformation[i][0], transformation[i][1], transformation[i][2]);
   }
-  
+
   return transformation;
 }
 
 CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t size)
 {
-  CPFrameVersion02 *packets = malloc(sizeof(tsRational *)* size);
+  CPFrameVersion02 *packets = malloc(sizeof(CPFrameVersion02) * size);
   size_t i;
   for (i = 0; i < size; i++)
   {
@@ -148,7 +178,6 @@ CPFrameVersion02 *motor_angles_to_packet(tsRational **transformation, size_t siz
     theta1 = floor(result[0]); theta2 = floor(result[1]); d3 = floor(result[2]);
     CPFrameVersion02 frame = {StartFrameDelimiter, CPV02_VERSION, 0, theta1, theta2, d3, 0, EndOfFrame};
     frame.CRC = crcFast((unsigned char *) &frame, CPV02_SIZE-3);
-    printf("%d\n", frame.CRC);
     packets[i] = frame;
   }
 
@@ -279,6 +308,7 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
 
       // Transform Spline to Inverse Kinematics
       size_t size;
+      // tsRational **cartesian;
       tsRational **cartesian, **transformation;
       cartesian = spline_to_cartesian(&spline, 0.1f, &size);
       transformation = cartesian_to_motor_angles(cartesian, size);
@@ -299,13 +329,17 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
       // Clean Up
       cartesian = destroy_cartesian(cartesian, size);
       transformation = destroy_cartesian(transformation, size);
+      free(packets);
+      ts_bspline_free(&spline);
       free(points);
       free(ret); ret = (char *) NULL;
       full_length = 0;
+
+      break;
     }
   }
 
-  if (!feof(file))
+  if (feof(file))
   {
     fprintf(stderr,"File EOF Error %s: %s\n", packets_buffer_file, strerror(errno));
     exit(EXIT_FAILURE);
