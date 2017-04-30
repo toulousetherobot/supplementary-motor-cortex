@@ -5,6 +5,18 @@
 #include <math.h> // Required for floor, roundf
 #include "CPFrames.h"
 
+#include <unistd.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <time.h>
+
+#define SERIAL_DEVICE "/dev/serial0"
+#define RESEND_TIME 5
+#define RX_PROTOCOL_VERSION CPV01_VERSION
+#define RX_PROTOCOL_SIZE CPV01_SIZE
+#define TX_PROTOCOL_VERSION CPV02_VERSION
+#define TX_PROTOCOL_SIZE CPV02_SIZE
+
 int main(int argc, char** argv)
 {
   if (argc != 5)
@@ -52,7 +64,7 @@ int main(int argc, char** argv)
   serial = open(SERIAL_DEVICE, O_RDWR | O_NOCTTY | O_NDELAY);    //Open in non blocking read/write mode
   if (serial == -1)
   {
-    send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("UART Error", "error", "Unable to open UART.  Ensure it is not in use by another application"));
+    // send_amqp_message(&conn, TOULOUSE_AMPQ_MESSAGE_ROUTING_KEY, form_message_payload("UART Error", "error", "Unable to open UART.  Ensure it is not in use by another application"));
     fprintf(stderr,"UART Error <%s>: %s\n", argv[1], "Unable to open UART.  Ensure it is not in use by another application");
     exit(EXIT_FAILURE);
   }
@@ -76,25 +88,9 @@ int main(int argc, char** argv)
   tcflush(serial, TCIFLUSH);
   tcsetattr(serial, TCSANOW, &options);
 
-  int receiveState = 0;
-
-  // We are keeping track of the last received package because
-  // from time to time, packages get lost. If we get no packages for 5 seconds
-  // we'll retry the last package
-  time_t lastPackage = time(NULL);
-  time_t now;
-
-  size_t bytes_written = fwrite(&frame, sizeof(CPFrameVersion02), 1, stdout);
-  if (bytes_written != 1)
-  {
-    fprintf(stderr,"Error: File Write Operation\n");
-    exit(EXIT_FAILURE);
-  }
-
   // Send Frame to Arduino
   int bytes_written;
   bytes_written = write(serial, &buffer, TX_PROTOCOL_SIZE);
-  time(&lastPackage);
   if (bytes_written < 0)
   {
     {
