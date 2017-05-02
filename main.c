@@ -18,8 +18,8 @@
 #define ElbowPanLinkLength 8.75
 #define PPI 72
 
-#define ZDrawingPlane 0
-#define ZRetractPlane 15
+#define ZDrawingPlane 340
+#define ZRetractPlane 20
 
 #define ZActuatorCalibrationBL 400
 #define ZActuatorCalibrationBR 280
@@ -85,7 +85,6 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
   tsRational length = spline_length(spline, 0, 1, start.result[0], start.result[1], end.result[0], end.result[1], 0);
   length = length/PPI; // Convert to Inches
   increment = increment/length;
-  increment = 0.25;
 
   // Clean up Calculate Length
   ts_deboornet_free(&start);
@@ -103,9 +102,9 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
     tsRational *result = malloc(sizeof(tsRational) * 3);
     result[0] = net.result[0]/PPI - 8.5; // x
     result[1] = 15 - net.result[1]/PPI; // y
-    result[2] = -1; // z
+    result[2] = 0; // z
     cartesian[i] = result;
-    // printf("S%zd (0), %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+    printf("S%zd (0), %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
     i++;
 
     ts_deboornet_free(&net);
@@ -121,7 +120,7 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
     result[1] = 15 - net.result[1]/PPI; // y
     result[2] = 0; // z
     cartesian[i] = result;
-    // printf("%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+    printf("%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
     i++;
 
     ts_deboornet_free(&net);
@@ -131,9 +130,9 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
     tsRational *result = malloc(sizeof(tsRational) * 3);
     result[0] = cartesian[i-1][0]; // x
     result[1] = cartesian[i-1][1]; // y
-    result[2] = -1; // z
+    result[2] = 0; // z
     cartesian[i] = result;
-    // printf("E%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+    printf("E%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
   }
 
   return cartesian;
@@ -335,15 +334,14 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
       free(ret); ret = (char *) NULL;
       full_length = 0;
 
-      break;
     }
   }
 
-  if (feof(file))
-  {
-    fprintf(stderr,"File EOF Error %s: %s\n", packets_buffer_file, strerror(errno));
-    exit(EXIT_FAILURE);
-  }
+  // if (feof(file))
+  // {
+  //   fprintf(stderr,"File EOF Error %s: %s\n", packets_buffer_file, strerror(errno));
+  //   exit(EXIT_FAILURE);
+  // }
 
   // Clean Up
   fclose(file);
