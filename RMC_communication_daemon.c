@@ -24,7 +24,7 @@
 #define TX_PROTOCOL_SIZE CPV02_SIZE
 
 #define JITTER 0
-#define HOLDING 1
+#define HOLDING 0
 
 int main(int argc, char** argv)
 {

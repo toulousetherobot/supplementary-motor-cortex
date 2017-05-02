@@ -21,10 +21,10 @@
 #define ZDrawingPlane 0
 #define ZRetractPlane 15
 
-#define ZActuatorCalibrationBL 200
-#define ZActuatorCalibrationBR 300
-#define ZActuatorCalibrationTL 550
-#define ZActuatorCalibrationTR 750
+#define ZActuatorCalibrationBL 400
+#define ZActuatorCalibrationBR 280
+#define ZActuatorCalibrationTL 510
+#define ZActuatorCalibrationTR 620
 
 #define WorkspaceLength 15.5
 #define WorkspaceWidth 9.5
