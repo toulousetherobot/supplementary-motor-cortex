@@ -362,6 +362,18 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
     }
   }
 
+  {
+    CPFrameVersion02 frame = {StartFrameDelimiter, CPV02_VERSION, 0, 686, 0, 50, 0, EndOfFrame};
+    frame.CRC = crcFast((unsigned char *) &frame, CPV02_SIZE-3);
+
+    size_t bytes_written = fwrite(&frame, sizeof(CPFrameVersion02), 1, packets_buffer);
+    if (bytes_written != 1)
+    {
+      fprintf(stderr,"Error: File Write Operation\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+
   // if (feof(file))
   // {
   //   fprintf(stderr,"File EOF Error %s: %s\n", packets_buffer_file, strerror(errno));
