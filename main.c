@@ -18,7 +18,7 @@
 #define ElbowPanLinkLength 8.75
 #define PPI 72
 
-#define ZDrawingPlane 380
+#define ZDrawingPlane 400
 #define ZRetractPlane 20
 
 #define ZActuatorCalibrationBL 400
