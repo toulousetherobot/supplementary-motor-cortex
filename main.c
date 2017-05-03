@@ -72,7 +72,7 @@ float actuator_delta(float x, float y) {
   return x * slope_x + y * slope_y + slope_x*(WorkspaceWidth/2.0);
 }
 
-tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size)
+tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *size, float prev_x, float prev_y)
 {
   tsRational u;
   tsDeBoorNet net;
@@ -90,24 +90,48 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
   ts_deboornet_free(&start);
   ts_deboornet_free(&end);
 
-  *size = 1.f/increment + 3;
+  *size = 1.f/increment + 1;
+
+  float distance;
+  float curr_x, curr_y;
+
+  {
+    tsDeBoorNet net;
+    ts_bspline_evaluate(spline, 0.f, &net);
+    curr_x = net.result[0]/PPI - 8.5; // x
+    curr_y = 15 - net.result[1]/PPI; // y
+    ts_deboornet_free(&net);
+
+    distance = sqrt(pow(curr_x - prev_x, 2)+pow(curr_y - prev_y, 2));
+    *size = *size + 2;
+  }
 
   tsRational **cartesian = malloc(sizeof(tsRational *)* (*size));
 
   size_t i = 0;
 
-  {
-    ts_bspline_evaluate(spline, 0.f, &net);
+  if (prev_x != -1 && distance > 0.1f){
+    // Move to Pen up at Last X Y
+    {
+      tsRational *result = malloc(sizeof(tsRational) * 3);
+      result[0] = prev_x; // x
+      result[1] = prev_y; // y
+      result[2] = 0; // z
+      cartesian[i] = result;
+      // printf("E%zd (L0), %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+      i++;
+    }
 
-    tsRational *result = malloc(sizeof(tsRational) * 3);
-    result[0] = net.result[0]/PPI - 8.5; // x
-    result[1] = 15 - net.result[1]/PPI; // y
-    result[2] = 0; // z
-    cartesian[i] = result;
-    printf("S%zd (0), %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
-    i++;
-
-    ts_deboornet_free(&net);
+    // Move to New X Y
+    {
+      tsRational *result = malloc(sizeof(tsRational) * 3);
+      result[0] = prev_x; // x
+      result[1] = prev_y; // y
+      result[2] = 0; // z
+      cartesian[i] = result;
+      // printf("S%zd (0), %f, %f, %f\n", i, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+      i++;
+    }
   }
 
   for (u = 0.f; u <= 1.f; u += increment)
@@ -120,26 +144,20 @@ tsRational** spline_to_cartesian(tsBSpline *spline, float increment, size_t *siz
     result[1] = 15 - net.result[1]/PPI; // y
     result[2] = 0; // z
     cartesian[i] = result;
-    printf("%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
+    // printf("%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
     i++;
 
     ts_deboornet_free(&net);
   }
 
-  {
-    tsRational *result = malloc(sizeof(tsRational) * 3);
-    result[0] = cartesian[i-1][0]; // x
-    result[1] = cartesian[i-1][1]; // y
-    result[2] = 0; // z
-    cartesian[i] = result;
-    printf("E%zd (%03.2f), %f, %f, %f\n", i, u, cartesian[i][0], cartesian[i][1], cartesian[i][2]);
-  }
+  *size = i;
 
   return cartesian;
 }
 
 tsRational** cartesian_to_motor_angles(tsRational **cartesian, size_t size)
 {
+
   tsRational **transformation = malloc(sizeof(tsRational *)* size);
 
   size_t i;
@@ -221,6 +239,10 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
   size_t count = -1;
   char *ret = NULL;
   size_t full_length = 0;
+
+  float prev_x, prev_y;
+  prev_x = -1;
+  prev_y = -1;
 
   while (fgets(buffer, sizeof(buffer), file))
   {
@@ -307,10 +329,13 @@ int motion_planning_packets(const char *curves_file, const char *packets_buffer_
 
       // Transform Spline to Inverse Kinematics
       size_t size;
-      // tsRational **cartesian;
       tsRational **cartesian, **transformation;
-      cartesian = spline_to_cartesian(&spline, 0.1f, &size);
+      cartesian = spline_to_cartesian(&spline, 0.1f, &size, prev_x, prev_y);
       transformation = cartesian_to_motor_angles(cartesian, size);
+
+      // Save Old Packets
+      prev_x = cartesian[size-1][0];
+      prev_y = cartesian[size-1][1];
 
       // Form Packet
       CPFrameVersion02 *packets = motor_angles_to_packet(transformation, size);
